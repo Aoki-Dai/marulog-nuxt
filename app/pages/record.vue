@@ -5,14 +5,14 @@ import type { ActivityCategoryId } from '~/types'
 const { currentActivity, startActivity, stopActivity } = useActivities()
 const selectedCategory = ref<ActivityCategoryId | null>(null)
 
-// Initialize selected category if activity is already running
+// アクティビティが既に実行中の場合、選択されたカテゴリを初期化する
 watch(currentActivity, (newVal) => {
   if (newVal) {
     selectedCategory.value = newVal.categoryId
   }
 }, { immediate: true })
 
-// Timer logic
+// タイマーロジック
 const elapsedTime = ref(0)
 let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -27,7 +27,7 @@ const updateTimer = () => {
 watch(currentActivity, (isActive) => {
   if (isActive) {
     if (!timerInterval) {
-      updateTimer() // Update immediately
+      updateTimer() // 即座に更新
       timerInterval = setInterval(updateTimer, 1000)
     }
   } else {
@@ -61,7 +61,7 @@ const handleStart = () => {
   <div class="flex flex-col gap-8 py-6">
     <!-- Timer Display -->
     <div class="flex flex-col items-center justify-center py-10 rounded-2xl bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-      <!-- Background Pulse Animation if active -->
+      <!-- 計測中は背景にパルスアニメーションを表示 -->
       <div v-if="currentActivity" class="absolute inset-0 bg-primary-500/5 animate-pulse" />
       
       <span class="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2 uppercase tracking-wider">

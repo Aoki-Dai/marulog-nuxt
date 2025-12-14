@@ -9,18 +9,18 @@ export type ActivityCategoryId =
 export interface ActivityCategory {
   id: ActivityCategoryId;
   label: string;
-  color: string; // Tailwind class or hex
-  icon: string; // Iconify name
+  color: string; // TailwindクラスまたはHEXコード
+  icon: string; // Iconifyアイコン名
 }
 
 export interface ActivityLog {
   id: string;
   categoryId: ActivityCategoryId;
   startTime: number;
-  endTime: number | null; // null means currently active
+  endTime: number | null; // nullは計測中を意味する
 }
 
-// Category Constants
+// カテゴリ定数
 export const CATEGORIES: ActivityCategory[] = [
   {
     id: "sleep",

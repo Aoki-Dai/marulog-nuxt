@@ -4,13 +4,13 @@ import type { ActivityLog, ActivityCategoryId } from '~/types'
 export const useActivities = () => {
   const logs = useState<ActivityLog[]>('marulog-activities', () => [])
   
-  // Load from local storage on client side mount
+  // クライアントサイドマウント時にローカルストレージから読み込む
   onMounted(() => {
     if (import.meta.client) {
       const stored = localStorage.getItem('marulog-activities')
       if (stored) {
         try {
-          // Parse and maybe migrate if needed
+          // パースして必要であればマイグレーションを行う
           logs.value = JSON.parse(stored)
         } catch (e) {
           console.error('Failed to parse logs', e)
@@ -19,7 +19,7 @@ export const useActivities = () => {
     }
   })
 
-  // Watch for changes to save to local storage
+  // 変更を監視してローカルストレージに保存する
   watch(logs, (newLogs) => {
     if (import.meta.client) {
       localStorage.setItem('marulog-activities', JSON.stringify(newLogs))
@@ -36,18 +36,18 @@ export const useActivities = () => {
     const endOfDay = startOfDay + 86400000
 
     return logs.value.filter(log => {
-      // Activity started today OR ended today OR is still active and started before today (spanning)
-      // For MVP, simplistic view: just show what overlaps with today.
+      // 今日開始された活動、または今日終了した活動、または現在進行中で今日以前に開始された活動（日またぎ）
+      // MVPでは単純化して、今日と重なるものを表示する
       
-      // Filter logic:
-      // log start < today end AND (log end > today start OR log is active)
+      // フィルタロジック:
+      // ログ開始 < 今日の終わり AND (ログ終了 > 今日の始まり OR ログが計測中)
       const logEnd = log.endTime ?? Date.now()
       return log.startTime < endOfDay && logEnd > startOfDay
     }).sort((a, b) => a.startTime - b.startTime)
   })
 
   const startActivity = (categoryId: ActivityCategoryId) => {
-    // Stop current if exists
+    // 現在の活動があれば停止する
     if (currentActivity.value) {
       stopActivity()
     }
@@ -63,9 +63,9 @@ export const useActivities = () => {
 
   const stopActivity = () => {
     if (currentActivity.value) {
-      // Direct mutation of the object inside the array is reactive with useState?
-      // useState returns a Ref, so logs.value is the array.
-      // We need to find the index to update to be sure, or update the reference.
+      // 配列内のオブジェクトを直接変更してもuseStateでリアクティブになるか？
+      // useStateはRefを返すので、logs.valueが配列になる
+      // 確実にするためにインデックスを見つけて更新するか、参照を更新する必要がある
       const idx = logs.value.findIndex(l => l.id === currentActivity.value?.id)
       if (idx !== -1) {
         const updatedLog = { ...logs.value[idx], endTime: Date.now() }

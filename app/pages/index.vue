@@ -4,18 +4,18 @@ import { CATEGORIES } from '~/types'
 
 const { todayLogs, currentActivity, deleteLog } = useActivities()
 
-// Calculation for Summary List
+// サマリーリストの計算
 const categorySummaries = computed(() => {
   const summaries = new Map<string, number>()
   
-  // Initialize with 0
+  // 0で初期化
   CATEGORIES.forEach(c => summaries.set(c.id, 0))
   
   const now = Date.now()
   const todayStart = new Date().setHours(0,0,0,0)
   const todayEnd = todayStart + 86400000
 
-  // Calculate duration for all logs including active one (up to now)
+  // 現在進行中のものも含めてすべてのアクティビティの時間を計算する（現時点まで）
   todayLogs.value.forEach(log => {
     const start = Math.max(log.startTime, todayStart)
     const end = log.endTime ? Math.min(log.endTime, todayEnd) : Math.min(now, todayEnd)
@@ -45,10 +45,10 @@ const totalDuration = computed(() => {
 
 const unrecordedDuration = computed(() => {
   const now = new Date()
-  // If viewing past days, should be 24h. But MVP is only "Today".
-  // So "Unrecorded" is time from Now to Midnight? Or Gaps in past?
-  // "Unrecorded" usually means gaps in the past.
-  // Gaps = (Now - TodayStart) - TotalRecordDuration (if no overlaps).
+  // 過去の日付を表示する場合、24時間になるはずだが、MVPでは「今日」のみ。
+  // そのため、「未記録」は現在から深夜までの時間か？それとも過去のギャップか？
+  // 「未記録」は通常、過去のギャップを意味する。
+  // ギャップ = (現在 - 今日の開始) - 合計記録時間 (重複がない場合)。
   const todayStart = new Date().setHours(0,0,0,0)
   const elapsedToday = Math.max(0, Date.now() - todayStart)
   return Math.max(0, elapsedToday - totalDuration.value)
@@ -91,7 +91,7 @@ const unrecordedDuration = computed(() => {
               class="w-10 h-10 rounded-full flex items-center justify-center text-white"
               :class="cat.color.replace('text-', '').split(' ')[1]" 
             > 
-            <!-- Note: Helper to extract bg color class. e.g. text-indigo-500 bg-indigo-500 -> bg-indigo-500 -->
+            <!-- メモ: 背景色のクラスを抽出するためのヘルパー。例: text-indigo-500 bg-indigo-500 -> bg-indigo-500 -->
                <UIcon :name="cat.icon" class="w-5 h-5" />
             </div>
             <div>

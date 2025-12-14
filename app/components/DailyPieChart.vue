@@ -19,8 +19,8 @@ const todayStart = computed(() => {
 
 const todayEnd = computed(() => todayStart.value + 86400000)
 
-// Helper to convert time to angle (00:00 is top, -90deg)
-// 0 to 24h -> 0 to 360deg
+// 時間を角度に変換するヘルパー関数 (00:00 は上部, -90度)
+// 0 から 24時間 -> 0 から 360度
 const timeToAngle = (time: number) => {
   const relativeTime = Math.max(0, Math.min(86400000, time - todayStart.value))
   const ratio = relativeTime / 86400000
@@ -40,7 +40,7 @@ const segments = computed(() => {
     const category = CATEGORIES.find(c => c.id === log.categoryId)
     if (!category) return null
 
-    // Clip to today boundaries
+    // 今日の範囲にクリップする
     const start = Math.max(log.startTime, todayStart.value)
     const end = log.endTime ? Math.min(log.endTime, todayEnd.value) : Math.min(Date.now(), todayEnd.value)
     
@@ -49,8 +49,8 @@ const segments = computed(() => {
     const startAngle = timeToAngle(start)
     const endAngle = timeToAngle(end)
     
-    // SVG path for arc
-    // If full circle (24h), handle separately but usually logs are smaller
+    // 円弧のSVGパス
+    // 完全な円(24時間)の場合、別途処理が必要だが通常ログはより小さい
     const startPos = getCoordinatesForAngle(startAngle)
     const endPos = getCoordinatesForAngle(endAngle)
     const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0
@@ -62,15 +62,15 @@ const segments = computed(() => {
       Z
     `
     
-    // Extract color for fill
-    // Tailwind classes are tricky in SVG, better use mapped hexcodes or utility class replacement
-    // But we can use class binding if we set valid CSS classes.
-    // CATEGORIES has "text-indigo-500 bg-indigo-500".
-    // We want the fill color. We can use "text-indigo-500" class on the path and fill="currentColor"?
-    // Or just extract the color name and maps it.
-    // Let's rely on standard Nuxt UI / Tailwind colors.
-    // However, class="text-indigo-500" makes the stroke/fill dependent on currentColor implementation?
-    // Usually fill should be set. 'fill-indigo-500' works in Tailwind.
+    // 塗りつぶしの色を抽出
+    // TailwindのクラスはSVGで扱うのが難しいため、マップされた16進数コードかユーティリティクラスの置換を使用する方が良い
+    // しかし、有効なCSSクラスを設定すればクラスバインディングが使える
+    // CATEGORIESには "text-indigo-500 bg-indigo-500" がある
+    // 塗りつぶしの色が欲しい。パスに "text-indigo-500" クラスを使用して fill="currentColor" にするか？
+    // または色名を抽出してマップする
+    // 標準の Nuxt UI / Tailwind カラーに依存することにする
+    // しかし、class="text-indigo-500" は stroke/fill が currentColor の実装に依存する？
+    // 通常は fill を設定する必要がある。Tailwind では 'fill-indigo-500' が機能する
     const colorClass = category.color.replace('bg-', 'fill-').split(' ')[1] // e.g. bg-indigo-500 -> fill-indigo-500
 
     return {
@@ -90,10 +90,10 @@ const activeSegment = ref<string | null>(null)
 <template>
   <div class="relative flex items-center justify-center">
     <svg :width="width" :height="height" viewBox="0 0 300 300" class="transform transition-transform">
-      <!-- Background Circle (Unrecorded) -->
+      <!-- 背景の円（未記録） -->
       <circle :cx="center.x" :cy="center.y" :r="radius" class="fill-gray-200 dark:fill-gray-800" />
       
-      <!-- Hour markers -->
+      <!-- 時間マーカー -->
       <line v-for="h in 24" :key="h"
         :x1="center.x + (radius - 5) * Math.cos(((h * 15 - 90) * Math.PI) / 180)"
         :y1="center.y + (radius - 5) * Math.sin(((h * 15 - 90) * Math.PI) / 180)"
@@ -104,7 +104,7 @@ const activeSegment = ref<string | null>(null)
         stroke-width="2"
       />
 
-      <!-- Segments -->
+      <!-- セグメント -->
       <path
         v-for="segment in segments"
         :key="segment.id"
@@ -114,11 +114,11 @@ const activeSegment = ref<string | null>(null)
         @click="activeSegment = activeSegment === segment.id ? null : segment.id" 
       />
       
-      <!-- Center Hole (Donut style optionally, but spec says pie chart. Let's keep it pie or small hole for aesthetic) -->
-      <!-- Let's add a small center circle for aesthetics and to hide center convergence artifacts -->
+      <!-- 中央の穴（ドーナツスタイルはオプションだが、仕様では円グラフとなっている。見た目のためにパイまたは小さな穴にしておく） -->
+      <!-- 見た目を良くし、中心の収束アーティファクトを隠すために小さな中央の円を追加 -->
       <circle :cx="center.x" :cy="center.y" r="40" class="fill-white dark:fill-gray-950" />
       
-      <!-- Clock Indicator (Icon) -->
+      <!-- 時計インジケーター（アイコン） -->
       <foreignObject :x="center.x - 12" :y="center.y - 12" width="24" height="24">
         <div class="flex items-center justify-center h-full text-gray-400">
            <UIcon name="i-lucide-clock" class="w-6 h-6" />
@@ -126,7 +126,7 @@ const activeSegment = ref<string | null>(null)
       </foreignObject>
     </svg>
     
-    <!-- Detail Overlay / Tooltip logic could be here, but simpler to show below chart -->
+    <!-- 詳細オーバーレイ / ツールチップのロジックはここに入れることもできるが、チャートの下に表示する方が簡単 -->
   </div>
   
   <div v-if="activeSegment" class="mt-4 p-4 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 text-center animate-in fade-in slide-in-from-bottom-2">
