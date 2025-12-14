@@ -88,6 +88,13 @@ export const useActivities = () => {
     logs.value.push(newLog)
   }
 
+  const updateActivityLog = (updatedLog: ActivityLog) => {
+    const idx = logs.value.findIndex(l => l.id === updatedLog.id)
+    if (idx !== -1) {
+      logs.value[idx] = updatedLog
+    }
+  }
+
   return {
     logs,
     currentActivity,
@@ -95,6 +102,7 @@ export const useActivities = () => {
     startActivity,
     stopActivity,
     deleteLog,
-    addActivityLog
+    addActivityLog,
+    updateActivityLog
   }
 }

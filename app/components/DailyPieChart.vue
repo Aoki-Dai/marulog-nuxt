@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import type { ActivityLog } from '~/types'
 import { CATEGORIES } from '~/types'
+import { useActivities } from '~/composables/useActivities'
+
+const { deleteLog, updateActivityLog } = useActivities()
 
 const props = defineProps<{
   logs: ActivityLog[]
@@ -117,6 +120,85 @@ const clockNumbers = Array.from({ length: 24 }, (_, i) => i).map(h => {
 const currentTimeAngle = computed(() => timeToAngle(currentTime.value))
 const currentTimePos = computed(() => getCoordinatesForAngle(currentTimeAngle.value, radius))
 
+// 編集機能
+const isEditing = ref(false)
+const editForm = ref({
+  categoryId: '',
+  startTime: '',
+  endTime: ''
+})
+
+const startEdit = () => {
+  const segment = segments.value.find(s => s.id === activeSegment.value)
+  if (!segment) return
+
+  const startDate = new Date(segment.rawDuration ? todayStart.value + (segment.duration > 0 ? segment.duration : 0) : 0) // This logic seems wrong. segment.duration is duration, not start time.
+  // segment definition:
+  // start = Math.max(log.startTime, todayStart.value)
+  // end = ...
+  // duration = end - start
+  // But we need the original log's start and end times to edit properly, or at least the start time relative to day.
+  
+  // Actually, I should find the original log from props.logs using activeSegment (which is log.id)
+  const log = props.logs.find(l => l.id === activeSegment.value)
+  if (!log) return
+
+  const start = new Date(log.startTime)
+  const end = log.endTime ? new Date(log.endTime) : new Date()
+
+  const formatTime = (date: Date) => {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  }
+
+  editForm.value = {
+    categoryId: log.categoryId,
+    startTime: formatTime(start),
+    endTime: log.endTime ? formatTime(end) : ''
+  }
+  isEditing.value = true
+}
+
+const saveEdit = () => {
+  const log = props.logs.find(l => l.id === activeSegment.value)
+  if (!log) return
+
+  const parseTime = (timeStr: string) => {
+    if (!timeStr) return null
+    const [h, m] = timeStr.split(':').map(Number)
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime()
+  }
+
+  const newStart = parseTime(editForm.value.startTime)
+  const newEnd = parseTime(editForm.value.endTime)
+
+  if (newStart) {
+    updateActivityLog({
+      ...log,
+      categoryId: editForm.value.categoryId as any, // casting for now, validation usually needed
+      startTime: newStart,
+      endTime: newEnd
+    })
+  }
+
+  isEditing.value = false
+  activeSegment.value = null
+}
+
+const handleDelete = () => {
+  if (activeSegment.value) {
+    if (confirm('この記録を削除してもよろしいですか？')) {
+      deleteLog(activeSegment.value)
+      activeSegment.value = null
+    }
+  }
+}
+
+// アクティブセグメントが変わったら編集モードをリセット
+watch(() => activeSegment.value, () => {
+  isEditing.value = false
+})
+
 </script>
 
 <template>
@@ -191,20 +273,118 @@ const currentTimePos = computed(() => getCoordinatesForAngle(currentTimeAngle.va
         </div>
       </foreignObject>
     </svg>
-  </div>
   
-  <div v-if="activeSegment" class="mt-4 p-4 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 text-center animate-in fade-in slide-in-from-bottom-2">
-    <div class="text-sm text-gray-500">選択中の記録</div>
-    <div class="font-bold text-lg" :class="CATEGORIES.find(c => c.label === segments.find(s => s.id === activeSegment)?.label)?.color.split(' ')[0]">
-      {{ segments.find(s => s.id === activeSegment)?.label }}
-    </div>
-    <div class="text-xl font-mono mt-1">
-      {{ 
-        new Date(segments.find(s => s.id === activeSegment)?.rawDuration || 0).toISOString().substr(11, 8)
-      }}
-    </div>
-    <div class="text-xs text-gray-400 mt-1">
-      {{ segments.find(s => s.id === activeSegment)?.timeLabel }}
+  <div v-if="activeSegment" class="absolute inset-0 z-10 flex items-center justify-center p-4 bg-black/5 dark:bg-black/20 backdrop-blur-[1px]" @click.self="activeSegment = null">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-5 w-full max-w-[280px] animate-in fade-in zoom-in-95 duration-200" @click.stop>
+      
+      <!-- Viewing Mode -->
+      <div v-if="!isEditing">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-medium text-gray-500">詳細</div>
+          <button @click="activeSegment = null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <UIcon name="i-lucide-x" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 mb-4">
+          <div 
+            class="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-sm"
+            :class="segments.find(s => s.id === activeSegment)?.category.color.replace('bg-', 'bg-')"
+          >
+            <UIcon :name="segments.find(s => s.id === activeSegment)?.category.icon || ''" class="w-6 h-6" />
+          </div>
+          <div>
+            <div class="font-bold text-lg text-gray-900 dark:text-gray-100">
+              {{ segments.find(s => s.id === activeSegment)?.label }}
+            </div>
+            <div class="text-sm text-gray-500 font-mono">
+              {{ segments.find(s => s.id === activeSegment)?.timeLabel }}
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-4 flex justify-between items-center">
+            <div class="text-xs text-gray-500">時間</div>
+            <div class="font-mono font-medium text-gray-700 dark:text-gray-300">
+              {{ new Date(segments.find(s => s.id === activeSegment)?.rawDuration || 0).toISOString().substr(11, 8) }}
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button 
+            @click="startEdit"
+            class="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            <UIcon name="i-lucide-edit-2" class="w-4 h-4" />
+            編集
+          </button>
+          <button 
+            @click="handleDelete"
+            class="flex items-center justify-center p-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          >
+            <UIcon name="i-lucide-trash-2" class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Editing Mode -->
+      <div v-else>
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-medium text-gray-900 dark:text-gray-100">編集</div>
+        </div>
+
+        <div class="space-y-4 mb-5">
+           <!-- Category Select -->
+           <div>
+             <label class="block text-xs text-gray-500 mb-1">アクティビティ</label>
+             <select 
+               v-model="editForm.categoryId"
+               class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+             >
+               <option v-for="cat in CATEGORIES" :key="cat.id" :value="cat.id">
+                 {{ cat.label }}
+               </option>
+             </select>
+           </div>
+
+           <!-- Time Input -->
+           <div class="grid grid-cols-2 gap-2">
+             <div>
+               <label class="block text-xs text-gray-500 mb-1">開始</label>
+               <input 
+                 type="time" 
+                 v-model="editForm.startTime"
+                 class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+               >
+             </div>
+             <div>
+               <label class="block text-xs text-gray-500 mb-1">終了</label>
+               <input 
+                 type="time" 
+                 v-model="editForm.endTime"
+                 class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+               >
+             </div>
+           </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button 
+            @click="isEditing = false"
+            class="flex-1 py-2 px-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium text-sm hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            キャンセル
+          </button>
+          <button 
+            @click="saveEdit"
+            class="flex-1 py-2 px-3 rounded-lg bg-primary-500 text-white font-medium text-sm hover:bg-primary-600 shadow-sm shadow-primary-500/20"
+          >
+            保存
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
+</div>
 </template>
