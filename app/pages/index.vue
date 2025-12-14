@@ -1,76 +1,124 @@
+<script setup lang="ts">
+import { useActivities } from '~/composables/useActivities'
+import { CATEGORIES } from '~/types'
+
+const { todayLogs, currentActivity, deleteLog } = useActivities()
+
+// Calculation for Summary List
+const categorySummaries = computed(() => {
+  const summaries = new Map<string, number>()
+  
+  // Initialize with 0
+  CATEGORIES.forEach(c => summaries.set(c.id, 0))
+  
+  const now = Date.now()
+  const todayStart = new Date().setHours(0,0,0,0)
+  const todayEnd = todayStart + 86400000
+
+  // Calculate duration for all logs including active one (up to now)
+  todayLogs.value.forEach(log => {
+    const start = Math.max(log.startTime, todayStart)
+    const end = log.endTime ? Math.min(log.endTime, todayEnd) : Math.min(now, todayEnd)
+    
+    if (start < end) {
+      const duration = end - start
+      const current = summaries.get(log.categoryId) || 0
+      summaries.set(log.categoryId, current + duration)
+    }
+  })
+  
+  return CATEGORIES.map(c => ({
+    ...c,
+    duration: summaries.get(c.id) || 0
+  })).sort((a, b) => b.duration - a.duration)
+})
+
+const formatDuration = (ms: number) => {
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  return `${h}h ${m}m`
+}
+
+const totalDuration = computed(() => {
+  return categorySummaries.value.reduce((acc, curr) => acc + curr.duration, 0)
+})
+
+const unrecordedDuration = computed(() => {
+  const now = new Date()
+  // If viewing past days, should be 24h. But MVP is only "Today".
+  // So "Unrecorded" is time from Now to Midnight? Or Gaps in past?
+  // "Unrecorded" usually means gaps in the past.
+  // Gaps = (Now - TodayStart) - TotalRecordDuration (if no overlaps).
+  const todayStart = new Date().setHours(0,0,0,0)
+  const elapsedToday = Math.max(0, Date.now() - todayStart)
+  return Math.max(0, elapsedToday - totalDuration.value)
+})
+</script>
+
 <template>
-  <div>
-    <UPageHero
-      title="Nuxt Starter Template"
-      description="A production-ready starter template powered by Nuxt UI. Build beautiful, accessible, and performant applications in minutes, not hours."
-      :links="[{
-        label: 'Get started',
-        to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-        target: '_blank',
-        trailingIcon: 'i-lucide-arrow-right',
-        size: 'xl'
-      }, {
-        label: 'Use this template',
-        to: 'https://github.com/nuxt-ui-templates/starter',
-        target: '_blank',
-        icon: 'i-simple-icons-github',
-        size: 'xl',
-        color: 'neutral',
-        variant: 'subtle'
-      }]"
-    />
+  <div class="flex flex-col gap-6 py-4">
+    <!-- Date Header -->
+    <div class="flex justify-between items-end px-2">
+      <div>
+        <h2 class="text-3xl font-bold text-gray-900 dark:text-white">Today</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-sm">
+          {{ new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }) }}
+        </p>
+      </div>
+      <div v-if="currentActivity" class="flex items-center gap-2 text-primary-500 font-medium animate-pulse">
+        <div class="w-2 h-2 rounded-full bg-primary-500" />
+        Recording
+      </div>
+    </div>
 
-    <UPageSection
-      id="features"
-      title="Everything you need to build modern Nuxt apps"
-      description="Start with a solid foundation. This template includes all the essentials for building production-ready applications with Nuxt UI's powerful component system."
-      :features="[{
-        icon: 'i-lucide-rocket',
-        title: 'Production-ready from day one',
-        description: 'Pre-configured with TypeScript, ESLint, Tailwind CSS, and all the best practices. Focus on building features, not setting up tooling.'
-      }, {
-        icon: 'i-lucide-palette',
-        title: 'Beautiful by default',
-        description: 'Leveraging Nuxt UI\'s design system with automatic dark mode, consistent spacing, and polished components that look great out of the box.'
-      }, {
-        icon: 'i-lucide-zap',
-        title: 'Lightning fast',
-        description: 'Optimized for performance with SSR/SSG support, automatic code splitting, and edge-ready deployment. Your users will love the speed.'
-      }, {
-        icon: 'i-lucide-blocks',
-        title: '100+ components included',
-        description: 'Access Nuxt UI\'s comprehensive component library. From forms to navigation, everything is accessible, responsive, and customizable.'
-      }, {
-        icon: 'i-lucide-code-2',
-        title: 'Developer experience first',
-        description: 'Auto-imports, hot module replacement, and TypeScript support. Write less boilerplate and ship more features.'
-      }, {
-        icon: 'i-lucide-shield-check',
-        title: 'Built for scale',
-        description: 'Enterprise-ready architecture with proper error handling, SEO optimization, and security best practices built-in.'
-      }]"
-    />
+    <!-- Chart -->
+    <div class="flex justify-center py-4">
+      <DailyPieChart :logs="todayLogs" />
+    </div>
 
-    <UPageSection>
-      <UPageCTA
-        title="Ready to build your next Nuxt app?"
-        description="Join thousands of developers building with Nuxt and Nuxt UI. Get this template and start shipping today."
-        variant="subtle"
-        :links="[{
-          label: 'Start building',
-          to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-          target: '_blank',
-          trailingIcon: 'i-lucide-arrow-right',
-          color: 'neutral'
-        }, {
-          label: 'View on GitHub',
-          to: 'https://github.com/nuxt-ui-templates/starter',
-          target: '_blank',
-          icon: 'i-simple-icons-github',
-          color: 'neutral',
-          variant: 'outline'
-        }]"
-      />
-    </UPageSection>
+    <!-- Summary List -->
+    <div class="space-y-4">
+      <h3 class="text-lg font-bold px-2 text-gray-800 dark:text-gray-200">内訳</h3>
+      
+      <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+        <div 
+          v-for="cat in categorySummaries" 
+          :key="cat.id"
+          class="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+        >
+          <div class="flex items-center gap-3">
+            <div 
+              class="w-10 h-10 rounded-full flex items-center justify-center text-white"
+              :class="cat.color.replace('text-', '').split(' ')[1]" 
+            > 
+            <!-- Note: Helper to extract bg color class. e.g. text-indigo-500 bg-indigo-500 -> bg-indigo-500 -->
+               <UIcon :name="cat.icon" class="w-5 h-5" />
+            </div>
+            <div>
+              <div class="font-medium text-gray-900 dark:text-gray-100">{{ cat.label }}</div>
+              <div class="text-xs text-gray-400">
+                 {{ Math.round((cat.duration / (totalDuration + unrecordedDuration || 1)) * 100) }}%
+              </div>
+            </div>
+          </div>
+          <div class="font-mono font-medium text-gray-700 dark:text-gray-300">
+            {{ formatDuration(cat.duration) }}
+          </div>
+        </div>
+        
+        <!-- Unrecorded Row -->
+        <div class="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-gray-900/50">
+          <div class="flex items-center gap-3">
+             <div class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 dark:bg-gray-800 text-gray-500">
+               <UIcon name="i-lucide-help-circle" class="w-5 h-5" />
+             </div>
+             <div class="font-medium text-gray-600 dark:text-gray-400">未記録</div>
+          </div>
+          <div class="font-mono font-medium text-gray-500 dark:text-gray-500">
+            {{ formatDuration(unrecordedDuration) }}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
