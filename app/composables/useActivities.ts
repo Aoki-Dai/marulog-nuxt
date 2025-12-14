@@ -78,12 +78,23 @@ export const useActivities = () => {
     logs.value = logs.value.filter(l => l.id !== id)
   }
 
+  const addActivityLog = (categoryId: ActivityCategoryId, startTime: number, endTime: number) => {
+    const newLog: ActivityLog = {
+      id: crypto.randomUUID(),
+      categoryId,
+      startTime,
+      endTime
+    }
+    logs.value.push(newLog)
+  }
+
   return {
     logs,
     currentActivity,
     todayLogs,
     startActivity,
     stopActivity,
-    deleteLog
+    deleteLog,
+    addActivityLog
   }
 }
